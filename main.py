@@ -41,21 +41,68 @@ def preprocess_cost_mat(cost_mat):
 
 
 class LK:
-    def __init__(self, cost: np.array):
-        self.cost = cost  # symmetric n-by-n numpy array
+    def __init__(self, cost: np.array, submove_size=5):
+        self.cost, self.alpha, self.penalty = preprocess_cost_mat(cost)
+        # self.cost = cost  # symmetric n-by-n numpy array
         self.size = len(cost)
-        self.max_exchange = 5
+        self.max_exchange = submove_size
         self.nearest_num = 5
-        # candidates store the five nearest vertices of each nodes.
         self.candidates = {}  # self.candidates must support __getitem__
-        self.create_test_candidates()
+        self.create_candidates()
 
-    def create_test_candidates(self):
+    def create_candidates(self):
+        self.candidates = {}
         for i in range(self.size):
-            self.candidates[i] = [j for j in range(self.size) if j != i]
+            sorted_nodes = nsmallest(self.nearest_num + 1, enumerate(self.cost[i]), key=itemgetter(1))
+            tmp_lst = [v for v, _ in sorted_nodes if v != i]
+            if len(tmp_lst) > self.nearest_num:
+                tmp_lst.pop()
+            self.candidates[i] = tmp_lst
 
-    def run(self, tour: Tour):
+    def create_initial_tour(self):
+        tour = Tour(list(range(self.size)))
+        i = random.randint(0, self.size - 1)
+        new_links = np.zeros((self.size, 2), int)
+        done = [i]
+        while len(done) < self.size:
+            new_i = -1
+            for j in range(self.size):
+                if j in done:
+                    continue
+                if j in self.candidates[i] and self.alpha[i, j] == 0:
+                    new_links[i, 1] = j
+                    new_links[j, 0] = i
+                    new_i = j
+                    done.append(j)
+                    break
+            if new_i == -1:
+                for j in range(self.size):
+                    if j in done:
+                        continue
+                    if j in self.candidates[i]:
+                        new_links[i, 1] = j
+                        new_links[j, 0] = i
+                        new_i = j
+                        done.append(j)
+                        break
+            if new_i == -1:
+                for j in range(self.size):
+                    if j not in done:
+                        new_links[i, 1] = j
+                        new_links[j, 0] = i
+                        new_i = j
+                        done.append(j)
+                        break
+            i = new_i
+        last = done[-1]
+        new_links[last, 1] = done[0]
+        new_links[done[0], 0] = last
+        tour.links = new_links
+        return tour
+
+    def run(self):
         """improve an initial tour by variable-exchange until local optimum."""
+        tour = self.create_initial_tour()
         better = tour
         cnt = 0
         while better is not None:
@@ -112,16 +159,17 @@ class LK:
         return
 
 
-class TSP_LKH:
+class LKH:
     def __init__(self, cost: np.array, submove_size=5):
-        self.cost = cost  # symmetric n-by-n numpy array
+        self.cost, self.alpha, self.penalty = preprocess_cost_mat(cost)
+        # self.cost = cost  # symmetric n-by-n numpy array
         self.size = len(cost)
         self.max_exchange = submove_size
         self.nearest_num = 5
         self.candidates = {}  # self.candidates must support __getitem__
-        self.creat_candidates()
+        self.create_candidates()
 
-    def creat_candidates(self):
+    def create_candidates(self):
         self.candidates = {}
         for i in range(self.size):
             sorted_nodes = nsmallest(self.nearest_num+1, enumerate(self.cost[i]), key=itemgetter(1))
@@ -130,7 +178,7 @@ class TSP_LKH:
                 tmp_lst.pop()
             self.candidates[i] = tmp_lst
 
-    def creat_initial_tour(self, alpha_value):
+    def create_initial_tour(self):
         tour = Tour(list(range(self.size)))
         i = random.randint(0, self.size-1)
         new_links = np.zeros((self.size, 2), int)
@@ -140,7 +188,7 @@ class TSP_LKH:
             for j in range(self.size):
                 if j in done:
                     continue
-                if j in self.candidates[i] and alpha_value[i, j] == 0:
+                if j in self.candidates[i] and self.alpha[i, j] == 0:
                     new_links[i, 1] = j
                     new_links[j, 0] = i
                     new_i = j
@@ -177,7 +225,7 @@ class TSP_LKH:
         while tour.links[v, 1] != 0:
             length += self.cost[v, tour.links[v, 1]]
             v = tour.links[v, 1]
-        return length
+        return length - 2 * sum(self.penalty)
 
     def improve(self, tour: Tour):
         """Improve a tour by a variable-exchange, at most 5-exchange.
@@ -233,35 +281,21 @@ class TSP_LKH:
                         result = self.dfs_recursion(tour, sque_v + [v_2i, v_2ip1], new_gain)
                         if result is not None:
                             return result
-                # if (i + 1) % self.max_exchange == 0:
-                #     continue
-                # return self.dfs_recursion(tour, sque_v + [v_2i, v_2ip1], new_gain)
-                # gain += - self.cost[v_2i_1, v_2i] + self.cost[v_2i, v_2ip1]
-                # if gain - self.cost[v_2ip1, sque_v[0]] > 0:
-                #     # check feasibility immediately
-                #     if tour.check_feasible(sque_v+[v_2i, v_2ip1]):
-                #         tour.k_exchange(sque_v + [v_2i, v_2ip1])
-                #         return tour
-                #     # if not feasible, check whether stop or search for next two nodes
-                #     if (i+1) % self.max_exchange == 0:
-                #         continue
-                #     delta_gain = self.cost[sque_v[2 * i - 2], sque_v[2 * i - 1]] - self.cost[sque_v[2 * i - 1], v_2i]
-                #     return self.dfs_recursion(tour, sque_v+[v_2i, v_2ip1], gain+delta_gain)
         return
 
-    def local_optimum(self, tour: Tour):
+    def run(self):
         """improve an initial tour by variable-exchange until local optimum."""
-        better = tour
+        tour = self.create_initial_tour()
+        better = None
         cnt = 0
-        while better is not None:
-            # if cnt % 20 == 0:
-            print("---------------------------------------------\n The ", cnt, "time.")
-            print("Improved tour:", list(better.iter_vertices()))
-            print("Improved cost:", self.tour_cost(better))
+        while tour is not None:
+            # print("---------------------------------------------\n The ", cnt, "time.")
+            # print("Improved tour:", list(tour.iter_vertices()))
+            # print("Improved cost:", tour.routine_cost(self.cost))
             cnt += 1
-            tour = better
-            better = self.improve(tour)
-        return tour
+            better = tour
+            tour = self.improve(better)
+        return better
 
 
 if __name__ == '__main__':
@@ -270,14 +304,12 @@ if __name__ == '__main__':
     n = len(cost_mat)
     cost_mat[range(n), range(n)] = np.inf
     cost_mat_d, alpha_value, pi = preprocess_cost_mat(cost_mat)
-    lkh_file = TSP_LKH(cost_mat_d)
+    lkh_file = LKH(cost_mat_d)
     lk_file = LK(cost_mat_d)
     original_tour = Tour(list(range(n)))
-    print("Original tour: ", list(original_tour.iter_vertices()))
-    print("Original cost: ", lkh_file.tour_cost(original_tour))
-
-    test_tour = lkh_file.creat_initial_tour(alpha_value)
-    print("Initial tour: ", list(test_tour.iter_vertices()))
-    print("Initial cost: ", lkh_file.tour_cost(test_tour))
-    # best = test_lkh.local_optimum(original_tour)
-    best = lkh_file.local_optimum(test_tour)
+    # print("Original tour: ", list(original_tour.iter_vertices()))
+    # print("Original cost: ", lkh_file.tour_cost(original_tour))
+    # tour_lkh = lkh_file.run()
+    print("LKH Improved tour: ", list(tour_lkh.iter_vertices()))
+    print("LKH Improved cost: ", lkh_file.tour_cost(tour_lkh))
+    tour_lk = lk_file.run()
