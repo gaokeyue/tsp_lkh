@@ -8,6 +8,25 @@ from .tour import TourDoubleList as Tour
 DATA_DIR = 'data'
 
 
+def tour_cost_arr(tour, cost_mat):
+    """Compute the cost a tour of array representation"""
+    total_cost = 0
+    for i in range(len(tour)):
+        total_cost += cost_mat[tour[i - 1], tour[i]]
+    return total_cost
+
+
+def read_test_data(cost_file, answer_file):
+    cost_mat = np.load(DATA_DIR + cost_file)
+    n = len(cost_mat)
+    cost_mat[range(n), range(n)] = np.inf
+    opt_tour = np.load(DATA_DIR + answer_file)
+    return cost_mat, opt_tour
+
+def preprocess_cost_mat(cost_mat):
+    """ZHao ying da xian shen shou..."""
+    return cost_mat_beta, alpha_near
+
 class LK:
     def __init__(self, cost: np.array):
         self.cost = cost  # symmetric n-by-n numpy array
