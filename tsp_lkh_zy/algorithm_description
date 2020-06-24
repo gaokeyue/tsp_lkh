@@ -1,0 +1,72 @@
+Simplifications:
+1) Sequential (not necessarily always feasible)
+2) no more than 5-exchange (If x5 is reached, then it has to be feasible)
+3) First try the circular doubly linked list implementation of tour
+4) break_vertices is a list, no auxilliary set to enable fast is_in operation
+
+def improve(tour, candidates, cost):
+    """Improve a tour by a variable-exchange, at most 5-exchange"""
+    for (v1, v2) in tour/tour_reversed:
+        global i = 1
+        global break_vs = [v1, v2]
+        global gain = 0
+        tour = dfs_recursion(i, break_vs, gain)
+        if tour is not None:
+            return tour
+
+def dfs_recursion(i, break_vs, gain):
+    """If a feasible and profitable tour is found beyond break_vs = [v1, v2,..., v_(2i-1), v_(2i)],
+    this function returns the tour. Otherwise return None."""
+    for v_(2i+1) in candidates[v_(2i)]:
+        if v_(2i+1) is worth exploring:  # disjunctivity and positive gain
+            break_vs.append(v_(2i+1))
+            gain += c(v_(2i-1), v_(2i)) - c(v_(2i), v(2i+1))
+            for v_(2i+2) in tour.adjoin(v_(2i+1)):  # At most two choices for v_(2i+2)
+                if v_(2i+2) not in break_vs:
+                    break_vs.append(v_(2i+2))
+                    if linking v_(2i+2) and v1 is feasible and profitable:
+                        return tour
+                    if (2i + 2) == 10:  # no more than 5-opt
+                        break_vs.pop()
+                        continue
+                    i += 1
+                    result = dfs_recursion(i, break_vs, gain)
+                    if result is not None:
+                        return result
+                    break_vs.pop()  # i.e. break_vs.remove(v_(2i+2))
+                    i -= 1
+            # If this line is reached, then v_(2i+1) is fruitless, hence clean up all the global variable
+            break_vs.pop()  # i.e break_vs.remove(v_(2i+1))
+            gain -= c(v_(2i-1), v_(2i)) - c(v_(2i), v(2i+1))
+    # If this line is reached, then v_(2i) is fruitless
+
+
+def lkh_recursion(i, break_vs = [v1, v2,..., v_(2i-1), v_(2i)], gain):
+    for v_(2i+1) in candidates[v_(2i)]:
+        if v_(2i+1) in break_vs:  # The disjunctivity criterion
+            continue
+        y_i = (v_(2i), v_(2i+1))
+        x_i = (v_(2i-1), v_(2i))
+        if gain + cost(x_i) - cost(y_i) <= 0:  # The positive gain criterion
+            continue
+        gain += cost(x_i) - cost(y_i)
+        break_vs.append(v_(2i+1))
+        for v_(2i+2) in tour.adjoin(v_(2i+1)):  # At most two choices for v_(2i+2)
+            if v_(2i+2) in break_vs:
+                continue
+            # First try close by connecting (v_(2i+2), v1)
+            y_(2i+2) = (v_(2i+2), v1)
+            if gain + g_(i+1) > 0 and feasible:
+                modify tour
+                return tour
+            i += 1
+            result = lkh_recursion(i, break_vs, gain)
+            if result is not None:  # a better tour is found
+                return result
+            i -= 1
+            gain -= bla
+            break_vs.pop()
+        break_vs.pop()
+        gain -= bla
+
+
