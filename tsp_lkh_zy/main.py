@@ -4,10 +4,9 @@ from heapq import nsmallest
 from operator import itemgetter
 # from collections import defaultdict
 import random
-cd .
-from classic_lkh_zy.tsp_lkh.tour import TourDoubleList as Tour
-from classic_lkh_zy.tsp_lkh.search_for_d import alpha_nearness
-from classic_lkh_zy.tsp_lkh.prim import CompleteGraph, PrimVertex
+from tsp_lkh_zy.tour import TourDoubleList as Tour
+from tsp_lkh_zy.search_for_d import alpha_nearness
+from tsp_lkh_zy.prim import CompleteGraph, PrimVertex
 
 
 class TSP_LKH:
