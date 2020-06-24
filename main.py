@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from mst import *
 
 DATA_DIR = 'data/'
 
@@ -19,6 +20,9 @@ def read_test_data(cost_file, answer_file):
     opt_tour = np.load(DATA_DIR + answer_file)
     return cost_mat, opt_tour
 
+def preprocess_cost_mat(cost_mat):
+    """ZHao ying da xian shen shou..."""
+    return cost_mat_beta, alpha_near
 
 class LK:
     pass
