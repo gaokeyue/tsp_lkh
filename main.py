@@ -6,6 +6,8 @@ import numpy as np
 import random
 from tour import TourDoubleList as Tour
 import time
+from tsp_lkh_zy.search_for_d import alpha_nearness
+from tsp_lkh_zy.prim import CompleteGraph, PrimVertex
 DATA_DIR = 'data/'
 
 
@@ -38,7 +40,7 @@ class LK:
         self.nearest_num = 5
         # candidates store the five nearest vertices of each nodes.
         self.candidates = {}  # self.candidates must support __getitem__
-        self.make_knn_candidates()
+        self.create_candidates()
 
     def create_test_candidates(self):
         for i in range(self.size):
@@ -48,8 +50,64 @@ class LK:
         for i in range(self.size):
             self.candidates[i] = np.argsort(self.cost[i])[:k]
 
-    def run(self, tour: Tour):
+    def create_candidates(self):
+        self.candidates = {}
+        for i in range(self.size):
+            sorted_nodes = nsmallest(self.nearest_num+1, enumerate(self.cost[i]), key=itemgetter(1))
+            tmp_lst = [v for v, _ in sorted_nodes if v != i]
+            if len(tmp_lst) > self.nearest_num:
+                tmp_lst.pop()
+            self.candidates[i] = tmp_lst
+
+    def alpha(self):
+        graph = CompleteGraph(self.cost)
+        return alpha_nearness(graph)
+
+    def create_initial_tour(self):
+        tour = Tour(list(range(self.size)))
+        i = random.randint(0, self.size-1)
+        new_links = np.zeros((self.size, 2), int)
+        done = [i]
+        alpha_value = self.alpha()
+        while len(done) < self.size:
+            new_i = -1
+            for j in range(self.size):
+                if j in done:
+                    continue
+                if j in self.candidates[i] and alpha_value[i, j] == 0:
+                    new_links[i, 1] = j
+                    new_links[j, 0] = i
+                    new_i = j
+                    done.append(j)
+                    break
+            if new_i == -1:
+                for j in range(self.size):
+                    if j in done:
+                        continue
+                    if j in self.candidates[i]:
+                        new_links[i, 1] = j
+                        new_links[j, 0] = i
+                        new_i = j
+                        done.append(j)
+                        break
+            if new_i == -1:
+                for j in range(self.size):
+                    if j not in done:
+                        new_links[i, 1] = j
+                        new_links[j, 0] = i
+                        new_i = j
+                        done.append(j)
+                        break
+            i = new_i
+        last = done[-1]
+        new_links[last, 1] = done[0]
+        new_links[done[0], 0] = last
+        tour.links = new_links
+        return tour
+
+    def run(self):
         """improve an initial tour by variable-exchange until local optimum."""
+        tour = self.create_initial_tour()
         better = None
         cnt = 0
         while tour is not None:
@@ -67,14 +125,11 @@ class LK:
         """
         # i, j = 0, 0
         # better = self.dfs_iter(tour, [i, tour.links[i, j]], self.cost[i, tour.links[i, j]])
-        better = None
         for i in range(tour.size):
             for j in [0, 1]:
+                better = self.dfs_iter(tour, [i, tour.links[i, j]], self.cost[i, tour.links[i, j]])
                 if better is not None:
                     return better
-                better = self.dfs_iter(tour, [i, tour.links[i, j]], self.cost[i, tour.links[i, j]])
-        if better is not None:
-            return better
         return
 
     def dfs_iter(self, tour: Tour, seqv: list, gain: int):
@@ -115,8 +170,6 @@ class LKH:
         # candidates store the five nearest vertices of each nodes.
         self.candidates = {}  # self.candidates must support __getitem__
         self.make_knn_candidates()
-        self.maxg = 0
-        self.bestseq = None
 
     def create_test_candidates(self):
         for i in range(self.size):
@@ -161,6 +214,8 @@ class LKH:
         v_0 = seqv[0]
         v_2i_1 = seqv[-1]
         k = len(seqv) // 2
+        if k == 10:
+            return
         mycand = self.candidates[v_2i_1]
         for v_2i in mycand:
             if v_2i not in seqv and gain - self.cost[v_2i_1, v_2i] > 0:
@@ -180,7 +235,9 @@ class LKH:
                                 if tour.check_feasible(seqv + [v_2i, v_2i__1]):
                                     return tour.k_optimal(seqv + [v_2i, v_2i__1])
                             else:
-                                return self.dfs_iter(tour, seqv + [v_2i, v_2i__1], gain + del_gain)
+                                result = self.dfs_iter(tour, seqv + [v_2i, v_2i__1], gain + del_gain)
+                                if result is not None:
+                                    return result
         return
 
 
@@ -209,7 +266,6 @@ if __name__ == '__main__':
     random.shuffle(tour0)
     mytour = Tour(tour0)
     print(f"initial tour is {list(mytour.iter_vertices())}")
-    # print("LK Improved tour:", list(mytour.iter_vertices()))
     TicToc.tic()
     tour_lk = test_lk.run(mytour)
     print("LK Improved tour:", list(tour_lk.iter_vertices()))
@@ -217,9 +273,9 @@ if __name__ == '__main__':
     TicToc.toc()
     print(f"initial tour is {list(mytour.iter_vertices())}")
     # print("LK Improved cost:", tour_lk.routine_cost(cost_mat))
-    TicToc.tic()
-    tour_lkh = test_lkh.run(mytour)
-    print("LKH Improved tour:", list(tour_lkh.iter_vertices()))
-    print("LKH Improved cost:", tour_lkh.routine_cost(cost_mat))
-    TicToc.toc()
-    print(f"The optimal cost should be {tour_cost_arr(opt_tour, cost_mat)}")
+    # TicToc.tic()
+    # tour_lkh = test_lkh.run(mytour)
+    # print("LKH Improved tour:", list(tour_lkh.iter_vertices()))
+    # print("LKH Improved cost:", tour_lkh.routine_cost(cost_mat))
+    # TicToc.toc()
+    # print(f"The optimal cost should be {tour_cost_arr(opt_tour, cost_mat)}")

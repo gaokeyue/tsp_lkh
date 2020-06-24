@@ -1,5 +1,5 @@
 import numpy as np
-from prim import CompleteGraph, PrimVertex
+from tsp_lkh_zy.prim import CompleteGraph, PrimVertex
 from operator import itemgetter
 from heapq import nsmallest
 

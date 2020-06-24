@@ -26,10 +26,6 @@ class TourDoubleList:
             self.links[last, 1] = route[0]
             self.links[route[0], 0] = last
 
-    # def clone(self):
-    #     """Copy the tour to a new one"""
-    #     return TourDoubleList(self.route)
-
     def next(self, i):
         return self.links[i, 1]
 
