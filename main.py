@@ -1,11 +1,12 @@
-from __future__ import annotations
+# from __future__ import annotations
 # from dataclasses import dataclass
 # from typing import List, Dict, Tuple, Set
 from itertools import permutations
 import numpy as np
 import random
-from .tour import TourDoubleList as Tour
-DATA_DIR = 'data'
+from tour import TourDoubleList as Tour
+import time
+DATA_DIR = 'data/'
 
 
 def tour_cost_arr(tour, cost_mat):
@@ -23,9 +24,11 @@ def read_test_data(cost_file, answer_file):
     opt_tour = np.load(DATA_DIR + answer_file)
     return cost_mat, opt_tour
 
-def preprocess_cost_mat(cost_mat):
-    """ZHao ying da xian shen shou..."""
-    return cost_mat_beta, alpha_near
+
+# def preprocess_cost_mat(cost_mat):
+#     """ZHao ying da xian shen shou..."""
+#     return cost_mat_beta, alpha_near
+
 
 class LK:
     def __init__(self, cost: np.array):
@@ -35,23 +38,28 @@ class LK:
         self.nearest_num = 5
         # candidates store the five nearest vertices of each nodes.
         self.candidates = {}  # self.candidates must support __getitem__
+        self.make_knn_candidates()
 
     def create_test_candidates(self):
         for i in range(self.size):
             self.candidates[i] = [j for j in range(self.size) if j != i]
 
+    def make_knn_candidates(self, k=5):
+        for i in range(self.size):
+            self.candidates[i] = np.argsort(self.cost[i])[:k]
+
     def run(self, tour: Tour):
         """improve an initial tour by variable-exchange until local optimum."""
-        better = tour
+        better = None
         cnt = 0
-        while better is not None:
-            print("---------------------------------------------\n The ", cnt, "time.")
-            print("Improved tour:", list(tour.iter_vertices()))
-            print("Improved cost:", tour.routine_cost(self.cost))
+        while tour is not None:
+            # print("---------------------------------------------\n The ", cnt, "time.")
+            # print("Improved tour:", list(tour.iter_vertices()))
+            # print("Improved cost:", tour.routine_cost(self.cost))
             cnt += 1
-            tour = self.improve(tour)
             better = tour
-        return tour
+            tour = self.improve(better)
+        return better
 
     def improve(self, tour: Tour):
         """
@@ -106,6 +114,7 @@ class LKH:
         self.nearest_num = 5
         # candidates store the five nearest vertices of each nodes.
         self.candidates = {}  # self.candidates must support __getitem__
+        self.make_knn_candidates()
         self.maxg = 0
         self.bestseq = None
 
@@ -113,15 +122,19 @@ class LKH:
         for i in range(self.size):
             self.candidates[i] = [j for j in range(self.size) if j != i]
 
+    def make_knn_candidates(self, k=5):
+        for i in range(self.size):
+            self.candidates[i] = np.argsort(self.cost[i])[:k]
+
     def run(self, tour: Tour):
         """improve an initial tour by variable-exchange until local optimum."""
         cnt = 0
         better = None
         while tour is not None:
             better = tour
-            print("---------------------------------------------\n The ", cnt, "time.")
-            print("Improved tour:", list(better.iter_vertices()))
-            print("Improved cost:", better.routine_cost(self.cost))
+            # print("---------------------------------------------\n The ", cnt, "time.")
+            # print("Improved tour:", list(better.iter_vertices()))
+            # print("Improved cost:", better.routine_cost(self.cost))
             cnt += 1
             tour = self.improve(better)
         return better
@@ -156,7 +169,7 @@ class LKH:
                     if v_2i__1 not in seqv:
                         # Calculate potential gain w.r.t. edge (v_{2i+1}, v_0)
                         del_gain = - self.cost[v_2i_1, v_2i] + self.cost[v_2i, v_2i__1]
-                        if k % self.max_exchange == 0:
+                        if k+1 % self.max_exchange == 0:
                             if tour.check_feasible(seqv + [v_2i, v_2i__1]):
                                 if gain + del_gain - self.cost[v_2i__1, v_0] > 0:
                                     return tour.k_optimal(seqv + [v_2i, v_2i__1])
@@ -171,8 +184,42 @@ class LKH:
         return
 
 
+class TicToc(object):
+
+    __tic_time, __toc_time = None, None
+
+    @classmethod
+    def tic(cls):
+        cls.__tic_time = time.time()
+
+    @classmethod
+    def toc(cls):
+        cls.__toc_time = time.time()
+        print("\rTask Elapsed Time:   {0}\n".format(cls.__toc_time - cls.__tic_time))
+
+
+"""_--------------------TEST-----------------------"""
 if __name__ == '__main__':
-    cost_filepath = 'data/ch130.npy'
-    cost_mat = np.load(cost_filepath)
-    n = len(cost_mat)
-    cost_mat[range(n), range(n)] = np.inf
+    cost_mat, opt_tour = read_test_data('ch130.npy', 'ch_ans.npy')
+    test_lk = LK(cost_mat)
+    test_lkh = LKH(cost_mat)
+    tour0 = list(range(len(cost_mat)))
+    s = 34
+    random.seed(s)
+    random.shuffle(tour0)
+    mytour = Tour(tour0)
+    print(f"initial tour is {list(mytour.iter_vertices())}")
+    # print("LK Improved tour:", list(mytour.iter_vertices()))
+    TicToc.tic()
+    tour_lk = test_lk.run(mytour)
+    print("LK Improved tour:", list(tour_lk.iter_vertices()))
+    print("LK Improved cost:", tour_lk.routine_cost(cost_mat))
+    TicToc.toc()
+    print(f"initial tour is {list(mytour.iter_vertices())}")
+    # print("LK Improved cost:", tour_lk.routine_cost(cost_mat))
+    TicToc.tic()
+    tour_lkh = test_lkh.run(mytour)
+    print("LKH Improved tour:", list(tour_lkh.iter_vertices()))
+    print("LKH Improved cost:", tour_lkh.routine_cost(cost_mat))
+    TicToc.toc()
+    print(f"The optimal cost should be {tour_cost_arr(opt_tour, cost_mat)}")
