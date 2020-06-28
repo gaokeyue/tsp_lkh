@@ -27,16 +27,11 @@ class TSP_LKH:
                 tmp_lst.pop()
             self.candidates[i] = tmp_lst
 
-    def alpha(self):
-        graph = CompleteGraph(self.cost)
-        return alpha_nearness(graph)
-
-    def creat_initial_tour(self):
+    def creat_initial_tour(self, alpha_value):
         tour = Tour(list(range(self.size)))
         i = random.randint(0, self.size-1)
         new_links = np.zeros((self.size, 2), int)
         done = [i]
-        alpha_value = self.alpha()
         while len(done) < self.size:
             new_i = -1
             for j in range(self.size):

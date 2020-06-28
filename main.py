@@ -1,12 +1,15 @@
-# from __future__ import annotations
+from __future__ import annotations
 # from dataclasses import dataclass
 # from typing import List, Dict, Tuple, Set
 from itertools import permutations
 import numpy as np
 import random
-from tour import TourDoubleList as Tour
-import time
-DATA_DIR = 'data/'
+from tsp_lkh_zy.tour import TourDoubleList as Tour
+from heapq import nsmallest
+from operator import itemgetter
+from tsp_lkh_zy.prim import CompleteGraph
+from tsp_lkh_zy.search_for_d import alpha_nearness, best_pi
+DATA_DIR = 'data'
 
 
 def tour_cost_arr(tour, cost_mat):
@@ -25,41 +28,91 @@ def read_test_data(cost_file, answer_file):
     return cost_mat, opt_tour
 
 
-# def preprocess_cost_mat(cost_mat):
-#     """ZHao ying da xian shen shou..."""
-#     return cost_mat_beta, alpha_near
+def preprocess_cost_mat(cost_mat):
+    """Zhao Ying nu li ban zhuan"""
+    graph = CompleteGraph(cost_mat)
+    pi = best_pi(graph)
+    cost_mat_d = cost_mat.copy()
+    for i in range(len(pi)):
+        for j in range(i, len(pi)):
+            cost_mat_d[i, j] = cost_mat_d[j, i] = cost_mat[i, j] + pi[i] + pi[j]
+    alpha_value = alpha_nearness(graph)
+    return cost_mat_d, alpha_value, pi
 
 
 class LK:
-    def __init__(self, cost: np.array):
-        self.cost = cost  # symmetric n-by-n numpy array
+    def __init__(self, cost: np.array, submove_size=5):
+        self.cost, self.alpha, self.penalty = preprocess_cost_mat(cost)
+        # self.cost = cost  # symmetric n-by-n numpy array
         self.size = len(cost)
-        self.max_exchange = 5
+        self.max_exchange = submove_size
         self.nearest_num = 5
-        # candidates store the five nearest vertices of each nodes.
         self.candidates = {}  # self.candidates must support __getitem__
-        self.make_knn_candidates()
+        self.create_candidates()
 
-    def create_test_candidates(self):
+    def create_candidates(self):
+        self.candidates = {}
         for i in range(self.size):
-            self.candidates[i] = [j for j in range(self.size) if j != i]
+            sorted_nodes = nsmallest(self.nearest_num + 1, enumerate(self.cost[i]), key=itemgetter(1))
+            tmp_lst = [v for v, _ in sorted_nodes if v != i]
+            if len(tmp_lst) > self.nearest_num:
+                tmp_lst.pop()
+            self.candidates[i] = tmp_lst
 
-    def make_knn_candidates(self, k=5):
-        for i in range(self.size):
-            self.candidates[i] = np.argsort(self.cost[i])[:k]
+    def create_initial_tour(self):
+        tour = Tour(list(range(self.size)))
+        i = random.randint(0, self.size - 1)
+        new_links = np.zeros((self.size, 2), int)
+        done = [i]
+        while len(done) < self.size:
+            new_i = -1
+            for j in range(self.size):
+                if j in done:
+                    continue
+                if j in self.candidates[i] and self.alpha[i, j] == 0:
+                    new_links[i, 1] = j
+                    new_links[j, 0] = i
+                    new_i = j
+                    done.append(j)
+                    break
+            if new_i == -1:
+                for j in range(self.size):
+                    if j in done:
+                        continue
+                    if j in self.candidates[i]:
+                        new_links[i, 1] = j
+                        new_links[j, 0] = i
+                        new_i = j
+                        done.append(j)
+                        break
+            if new_i == -1:
+                for j in range(self.size):
+                    if j not in done:
+                        new_links[i, 1] = j
+                        new_links[j, 0] = i
+                        new_i = j
+                        done.append(j)
+                        break
+            i = new_i
+        last = done[-1]
+        new_links[last, 1] = done[0]
+        new_links[done[0], 0] = last
+        tour.links = new_links
+        return tour
 
-    def run(self, tour: Tour):
+    def run(self):
         """improve an initial tour by variable-exchange until local optimum."""
-        better = None
+        tour = self.create_initial_tour()
+        better = tour
         cnt = 0
-        while tour is not None:
-            # print("---------------------------------------------\n The ", cnt, "time.")
-            # print("Improved tour:", list(tour.iter_vertices()))
-            # print("Improved cost:", tour.routine_cost(self.cost))
+        while better is not None:
+            print("---------------------------------------------\n The ", cnt, "time.")
+            print("Improved tour:", list(tour.iter_vertices()))
+            print("Improved cost:", tour.routine_cost(self.cost))
             cnt += 1
+            tour = self.improve(tour)
             better = tour
-            tour = self.improve(better)
-        return better
+        return tour
 
     def improve(self, tour: Tour):
         """
@@ -107,119 +160,156 @@ class LK:
 
 
 class LKH:
-    def __init__(self, cost: np.array):
-        self.cost = cost  # symmetric n-by-n numpy array
+    def __init__(self, cost: np.array, submove_size=5):
+        self.cost, self.alpha, self.penalty = preprocess_cost_mat(cost)
+        # self.cost = cost  # symmetric n-by-n numpy array
         self.size = len(cost)
-        self.max_exchange = 5
+        self.max_exchange = submove_size
         self.nearest_num = 5
-        # candidates store the five nearest vertices of each nodes.
         self.candidates = {}  # self.candidates must support __getitem__
-        self.make_knn_candidates()
-        self.maxg = 0
-        self.bestseq = None
+        self.create_candidates()
 
-    def create_test_candidates(self):
+    def create_candidates(self):
+        self.candidates = {}
         for i in range(self.size):
-            self.candidates[i] = [j for j in range(self.size) if j != i]
+            sorted_nodes = nsmallest(self.nearest_num+1, enumerate(self.cost[i]), key=itemgetter(1))
+            tmp_lst = [v for v, _ in sorted_nodes if v != i]
+            if len(tmp_lst) > self.nearest_num:
+                tmp_lst.pop()
+            self.candidates[i] = tmp_lst
 
-    def make_knn_candidates(self, k=5):
-        for i in range(self.size):
-            self.candidates[i] = np.argsort(self.cost[i])[:k]
+    def create_initial_tour(self):
+        tour = Tour(list(range(self.size)))
+        i = random.randint(0, self.size-1)
+        new_links = np.zeros((self.size, 2), int)
+        done = [i]
+        while len(done) < self.size:
+            new_i = -1
+            for j in range(self.size):
+                if j in done:
+                    continue
+                if j in self.candidates[i] and self.alpha[i, j] == 0:
+                    new_links[i, 1] = j
+                    new_links[j, 0] = i
+                    new_i = j
+                    done.append(j)
+                    break
+            if new_i == -1:
+                for j in range(self.size):
+                    if j in done:
+                        continue
+                    if j in self.candidates[i]:
+                        new_links[i, 1] = j
+                        new_links[j, 0] = i
+                        new_i = j
+                        done.append(j)
+                        break
+            if new_i == -1:
+                for j in range(self.size):
+                    if j not in done:
+                        new_links[i, 1] = j
+                        new_links[j, 0] = i
+                        new_i = j
+                        done.append(j)
+                        break
+            i = new_i
+        last = done[-1]
+        new_links[last, 1] = done[0]
+        new_links[done[0], 0] = last
+        tour.links = new_links
+        return tour
 
-    def run(self, tour: Tour):
+    def tour_cost(self, tour: Tour):
+        v = 0
+        length = self.cost[v, tour.links[v, 0]]
+        while tour.links[v, 1] != 0:
+            length += self.cost[v, tour.links[v, 1]]
+            v = tour.links[v, 1]
+        return length - 2 * sum(self.penalty)
+
+    def improve(self, tour: Tour):
+        """Improve a tour by a variable-exchange, at most 5-exchange.
+        We would like the three variables, i, break_vs and gain, to be shared by all recursion calls,
+        so two options are available to deal with the problem that i and gain are immutable:
+        (1) place the recursion function inside the improve function (as an inner function) and use the nonlocal
+        trick. The nonlocal label is effective throught all recursions;
+        (2) place the recursion function outside the improve function, but wrap all the variables inside
+        a mutable variable, e.g a dictionary, and then pass this dummy mutable variable into all recursions.
+        Approach (2) is the one adopted here, because it's probably more flexible,
+        in case the recursion function will be called by another function in addition to the improve function"""
+        for v0, v1 in tour.iter_links():
+            result = self.dfs_recursion(tour, [v0, v1], 0)
+            if result is not None:
+                return result
+
+    def dfs_recursion(self, tour, sque_v, gain):
+        """depth-first-search by recursion called by self.improve.
+        If a feasible and profitable tour is found beyond break_vs = [v1, v2,..., v_(2i-1), v_(2i)],
+        this function returns the tour. Otherwise return None."""
+        i = len(sque_v) // 2  # step i done already
+
+        if i == 10:
+            return
+
+        dahuitou = (i + 1) % self.max_exchange == 0
+        v_2i_2, v_2i_1 = sque_v[-2], sque_v[-1]
+        # step i+1: search for (v_2i, v_2ip1)
+        for v_2i in self.candidates[v_2i_1]:
+            if v_2i in sque_v:  # disjunctivity criterion
+                continue
+            new_gain = gain + self.cost[v_2i_2, v_2i_1] - self.cost[v_2i_1, v_2i]
+            if new_gain <= 0:
+                continue
+            for v_2ip1 in tour.neighbours(v_2i):
+                if v_2ip1 in sque_v:  # disjunctivity criterion
+                    continue
+                if dahuitou:
+                    if tour.check_feasible(sque_v+[v_2i, v_2ip1]):
+                        if new_gain + self.cost[v_2i, v_2ip1] - self.cost[v_2ip1, sque_v[0]] > 0:
+                            tour.k_exchange(sque_v + [v_2i, v_2ip1])
+                            return tour
+                        else:
+                            return self.dfs_recursion(tour, sque_v + [v_2i, v_2ip1], new_gain)
+                    else:  # optional, can be deleted
+                        continue
+                else:
+                    if new_gain + self.cost[v_2i, v_2ip1] - self.cost[v_2ip1, sque_v[0]] > 0 and \
+                            tour.check_feasible(sque_v+[v_2i, v_2ip1]):
+                        tour.k_exchange(sque_v + [v_2i, v_2ip1])
+                        return tour
+                    else:
+                        result = self.dfs_recursion(tour, sque_v + [v_2i, v_2ip1], new_gain)
+                        if result is not None:
+                            return result
+        return
+
+    def run(self):
         """improve an initial tour by variable-exchange until local optimum."""
-        cnt = 0
+        tour = self.create_initial_tour()
         better = None
+        cnt = 0
         while tour is not None:
-            better = tour
             # print("---------------------------------------------\n The ", cnt, "time.")
-            # print("Improved tour:", list(better.iter_vertices()))
-            # print("Improved cost:", better.routine_cost(self.cost))
+            # print("Improved tour:", list(tour.iter_vertices()))
+            # print("Improved cost:", tour.routine_cost(self.cost))
             cnt += 1
+            better = tour
             tour = self.improve(better)
         return better
 
-    def improve(self, tour: Tour):
-        """
-        The head function to use iterable func. dfs_iter
-        """
-        # i, j = 0, 0
-        # better = self.dfs_iter(tour, [i, tour.links[i, j]], self.cost[i, tour.links[i, j]])
-        for i in range(tour.size):
-            for j in [0, 1]:
-                better = self.dfs_iter(tour, [i, tour.links[i, j]], self.cost[i, tour.links[i, j]])
-                if better is not None:
-                    return better
-        return
 
-    def dfs_iter(self, tour: Tour, seqv: list, gain: int):
-        """
-        tour: Original tour without updation.
-        seqv: sequential vertices (v_0, v_1, ..., v_{2i-2}, v_{2i-1})
-        gain: partial sum to (i-1) of |x| - |y| plus |x_i|
-        """
-        v_0 = seqv[0]
-        v_2i_1 = seqv[-1]
-        k = len(seqv) // 2
-        mycand = self.candidates[v_2i_1]
-        for v_2i in mycand:
-            if v_2i not in seqv and gain - self.cost[v_2i_1, v_2i] > 0:
-                # Choose v_{2i+1} from neighbours of v_{2i-1}.
-                for v_2i__1 in tour.links[v_2i]:
-                    if v_2i__1 not in seqv:
-                        # Calculate potential gain w.r.t. edge (v_{2i+1}, v_0)
-                        del_gain = - self.cost[v_2i_1, v_2i] + self.cost[v_2i, v_2i__1]
-                        if k+1 % self.max_exchange == 0:
-                            if tour.check_feasible(seqv + [v_2i, v_2i__1]):
-                                if gain + del_gain - self.cost[v_2i__1, v_0] > 0:
-                                    return tour.k_optimal(seqv + [v_2i, v_2i__1])
-                                else:
-                                    return self.dfs_iter(tour, seqv + [v_2i, v_2i__1], gain + del_gain)
-                        else:
-                            if gain + del_gain - self.cost[v_2i__1, v_0] > 0:
-                                if tour.check_feasible(seqv + [v_2i, v_2i__1]):
-                                    return tour.k_optimal(seqv + [v_2i, v_2i__1])
-                            else:
-                                return self.dfs_iter(tour, seqv + [v_2i, v_2i__1], gain + del_gain)
-        return
-
-
-class TicToc(object):
-
-    __tic_time, __toc_time = None, None
-
-    @classmethod
-    def tic(cls):
-        cls.__tic_time = time.time()
-
-    @classmethod
-    def toc(cls):
-        cls.__toc_time = time.time()
-        print("\rTask Elapsed Time:   {0}\n".format(cls.__toc_time - cls.__tic_time))
-
-
-"""_--------------------TEST-----------------------"""
 if __name__ == '__main__':
-    cost_mat, opt_tour = read_test_data('ch130.npy', 'ch_ans.npy')
-    test_lk = LK(cost_mat)
-    test_lkh = LKH(cost_mat)
-    tour0 = list(range(len(cost_mat)))
-    s = 34
-    random.seed(s)
-    random.shuffle(tour0)
-    mytour = Tour(tour0)
-    print(f"initial tour is {list(mytour.iter_vertices())}")
-    # print("LK Improved tour:", list(mytour.iter_vertices()))
-    TicToc.tic()
-    tour_lk = test_lk.run(mytour)
-    print("LK Improved tour:", list(tour_lk.iter_vertices()))
-    print("LK Improved cost:", tour_lk.routine_cost(cost_mat))
-    TicToc.toc()
-    print(f"initial tour is {list(mytour.iter_vertices())}")
-    # print("LK Improved cost:", tour_lk.routine_cost(cost_mat))
-    TicToc.tic()
-    tour_lkh = test_lkh.run(mytour)
-    print("LKH Improved tour:", list(tour_lkh.iter_vertices()))
-    print("LKH Improved cost:", tour_lkh.routine_cost(cost_mat))
-    TicToc.toc()
-    print(f"The optimal cost should be {tour_cost_arr(opt_tour, cost_mat)}")
+    cost_filepath = 'data/ch130.npy'
+    cost_mat = np.load(cost_filepath)
+    n = len(cost_mat)
+    cost_mat[range(n), range(n)] = np.inf
+    cost_mat_d, alpha_value, pi = preprocess_cost_mat(cost_mat)
+    lkh_file = LKH(cost_mat_d)
+    lk_file = LK(cost_mat_d)
+    original_tour = Tour(list(range(n)))
+    # print("Original tour: ", list(original_tour.iter_vertices()))
+    # print("Original cost: ", lkh_file.tour_cost(original_tour))
+    # tour_lkh = lkh_file.run()
+    print("LKH Improved tour: ", list(tour_lkh.iter_vertices()))
+    print("LKH Improved cost: ", lkh_file.tour_cost(tour_lkh))
+    tour_lk = lk_file.run()

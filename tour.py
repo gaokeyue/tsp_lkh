@@ -93,7 +93,7 @@ class TourDoubleList:
         else:
             return False
 
-    def k_optimal(self, v: list):
+    def k_exchange(self, v: list):
         """
         Make a k-exchange w.r.t. sequential mv = [v_0, v_1, ..., v_2k-2, v_2k-1],
         where we add (v_2i-1, v_2i) and remove (v_2i, v_2i+1).
