@@ -9,6 +9,7 @@ class TourDoubleList:
         """Accept any sequence of permutation of range(n). """
         # self.route = route
         self.size = len(route)
+        route = list(route)
         if route == [0] * self.size or route == [-1] * self.size:
             # Permit null initialization.
             self.links = np.zeros((self.size, 2), int)

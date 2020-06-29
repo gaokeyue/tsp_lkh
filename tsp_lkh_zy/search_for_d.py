@@ -1,25 +1,26 @@
 import numpy as np
+import time
 from tsp_lkh_zy.prim import CompleteGraph, PrimVertex
 from operator import itemgetter
 from heapq import nsmallest
 
 
 def update_graph_weight(graph, pi):
-    d = np.ones((graph.n, graph.n))
-    for i in range(graph.n):
-        for j in range(i, graph.n):
-            d[i][j] = graph.adj_mat[i][j] + pi[i] + pi[j]
-            d[j][i] = graph.adj_mat[i][j] + pi[i] + pi[j]
-    new_g = CompleteGraph(d)
+    # d = np.ones((graph.n, graph.n))
+    # for i in range(graph.n):
+    #     for j in range(i, graph.n):
+    #         d[i][j] = graph.adj_mat[i][j] + pi[i] + pi[j]
+    #         d[j][i] = graph.adj_mat[i][j] + pi[i] + pi[j]
+    new_g = CompleteGraph(graph.adj_mat + pi.reshape(graph.n, -1) + pi.reshape(-1, graph.n))
     return new_g
 
 
 # weight of m1t after weighted
 def weighted_total_weight(graph, pi):
-    new_g = update_graph_weight(graph, pi)
-    result = build_m1t(new_g)
-    w = result[0] - 2 * sum(pi)
-    return [w, result[1]]
+    new_g = CompleteGraph(graph.adj_mat + pi.reshape(graph.n, -1) + pi.reshape(-1, graph.n))
+    length, degree, _, _, _ = build_m1t(new_g)
+    w = length - 2 * sum(pi)
+    return w, degree - 2
 
 
 def build_m1t(graph):  # O(n^2)
@@ -29,7 +30,7 @@ def build_m1t(graph):  # O(n^2)
     # initial node: 0
     vertices[0].key = 0
     # each node has a parent except node 0
-    degree = [1 for _ in range(graph.n)]  # O(n)
+    degree = np.ones(graph.n, dtype=int)  # O(n)
     degree[0] = 0
     q = list(vertices)
     tree = []
@@ -52,7 +53,7 @@ def build_m1t(graph):  # O(n^2)
     list_leaves = []
     for i in range(1, graph.n):
         if degree[i] == 1:
-            ending_node = nsmallest(3, enumerate(graph.adj_mat[i]), key=itemgetter(1))[2]
+            ending_node = nsmallest(3, enumerate(graph.adj_mat[i]), key=itemgetter(1))[1]
             list_leaves.append((ending_node[1], i, ending_node[0]))
     last_edge = max(list_leaves)
     # last_edge[1]: the special node; last_edge[2]: degree += 1; last_edge[0]: the weight of the edge to be added
@@ -62,7 +63,7 @@ def build_m1t(graph):  # O(n^2)
     # delete the special node from tree
     special_node = last_edge[1]
     # tree.remove(vertices[special_node])
-    return [length, degree, special_node, tree, vertices]
+    return length, degree, special_node, tree, vertices
 
 
 def build_mst(graph):
@@ -92,9 +93,9 @@ def beta(graph):  # O(n^2)
     special_node = build_m1t(graph)[4]
     n = len(tree)
     beta_value = np.zeros((n, n))
-    for i in range(n): # O(n^2)
+    for i in range(n):  # O(n^2)
         if tree[i].id != special_node:
-            for j in range(i+1, n):
+            for j in range(i + 1, n):
                 if tree[j].id != special_node:
                     value = max(beta_value[tree[i].id][tree[j].parent], graph.e_weight(tree[j].id, tree[j].parent))
                     beta_value[tree[i].id][tree[j].id] = beta_value[tree[j].id][tree[i].id] = value
@@ -108,7 +109,7 @@ def alpha_nearness(graph):  # O(n^2)
     alpha = np.zeros((n, n))
     beta_value = beta(graph)  # O(n^2)
     for i in range(n):  # O(n^2)
-        for j in range(i+1, n):
+        for j in range(i + 1, n):
             if i == special_node or j == special_node:
                 list_n = sorted(graph.adj_mat[special_node])
                 alpha[i][j] = alpha[j][i] = list_n[2]
@@ -119,41 +120,116 @@ def alpha_nearness(graph):  # O(n^2)
     return alpha
 
 
-def best_pi(graph):
-    pi0 = [0 for _ in range(graph.n)]
-    w_0 = weighted_total_weight(graph, pi0)[0]
-    degree_0 = weighted_total_weight(graph, pi0)[1]
-    v_0 = [d - 2 for d in degree_0]
-    v_1 = v_0.copy()
-    # calculate the initial step size
+# def best_pi(graph):
+#     pi0 = [0 for _ in range(graph.n)]
+#     w_0 = weighted_total_weight(graph, pi0)[0]
+#     degree_0 = weighted_total_weight(graph, pi0)[1]
+#     v_0 = [d - 2 for d in degree_0]
+#     v_1 = v_0.copy()
+#     # calculate the initial step size
+#     t = 1
+#     pi = [pi0[i] + t * (0.7 * v_0[i] + 0.3 * v_1[i]) for i in range(graph.n)]
+#     w_1 = weighted_total_weight(graph, pi)[0]
+#     while w_1 > w_0:
+#         t *= 2
+#         pi = [pi0[i] + t * (0.7 * v_0[i] + 0.3 * v_1[i]) for i in range(graph.n)]
+#         w_1 = weighted_total_weight(graph, pi)[0]
+#     t /= 2
+#
+#     v_optimal = [0 for _ in range(graph.n)]
+#     pi = [pi0[i] + t * (0.7 * v_0[i] + 0.3 * v_1[i]) for i in range(graph.n)]
+#     order = graph.n / 2
+#     while t > 0.0001 and v_0 != v_optimal:
+#         w_1, degree_1 = weighted_total_weight(graph, pi)
+#         while True:
+#             index = 1
+#             while v_0 != v_optimal and index < order:
+#                 index += 1
+#                 v_1 = v_0.copy()
+#                 v_0 = [d - 2 for d in degree_1]
+#                 pi = [pi[i] + t * (0.7 * v_0[i] + 0.3 * v_1[i]) for i in range(graph.n)]
+#                 degree_1 = weighted_total_weight(graph, pi)[1]
+#                 w_0 = w_1
+#                 w_1 = weighted_total_weight(graph, pi)[0]
+#             if w_1 >= w_0:
+#                 order /= 2
+#                 break
+#         t = t / 2
+#
+#     return pi
+
+
+def dual_ascent(graph, eps=10 ** -6):
+    # First period
+    period = graph.n // 2
     t = 1
-    pi = [pi0[i] + t*(0.7*v_0[i]+0.3*v_1[i]) for i in range(graph.n)]
-    w_1 = weighted_total_weight(graph, pi)[0]
-    while w_1 > w_0:
-        t *= 2
-        pi = [pi0[i] + t * (0.7 * v_0[i] + 0.3 * v_1[i]) for i in range(graph.n)]
-        w_1 = weighted_total_weight(graph, pi)[0]
-    t /= 2
-
-    v_optimal = [0 for _ in range(graph.n)]
-    pi = [pi0[i] + t * (0.7 * v_0[i] + 0.3 * v_1[i]) for i in range(graph.n)]
-    order = graph.n / 2
-    while t > 0.0001 and v_0 != v_optimal:
-        w_1 = weighted_total_weight(graph, pi)[0]
-        degree_1 = weighted_total_weight(graph, pi)[1]
-        while True:
-            index = 1
-            while v_0 != v_optimal and index < order:
-                index += 1
-                v_1 = v_0.copy()
-                v_0 = [d - 2 for d in degree_1]
-                pi = [pi[i] + t*(0.7*v_0[i]+0.3*v_1[i]) for i in range(graph.n)]
-                degree_1 = weighted_total_weight(graph, pi)[1]
-                w_0 = w_1
-                w_1 = weighted_total_weight(graph, pi)[0]
-            if w_1 >= w_0:
-                order /= 2
+    pi0 = np.zeros(graph.n)
+    w0, grad0 = weighted_total_weight(graph, pi0)
+    pi1 = pi0 + t * grad0
+    pi_star = pi0
+    w_star = w0
+    grad_star = grad0
+    for _ in range(period):
+        w1, grad1 = weighted_total_weight(graph, pi1)
+        if w1 > w0:
+            pi_star = pi1
+            w_star = w1
+            grad_star = grad1
+        if grad1.any():  # since grad1 is of integer type
+            print(f"step size={t}, objective={w1:.3f}")
+            if w1 <= w0:
+                t /= 2
+                pi1 = pi0 + t * (.7 * grad1 + .3 * grad0)  # recompute pi1 using a smaller step size
                 break
-        t = t/2
+            t *= 2
+            pi0 = pi1
+            pi1 = pi0 + t * (.7 * grad1 + .3 * grad0)
+            w0 = w1
+            grad0 = grad1
+        else:
+            return pi_star, w_star, grad_star
+    print(f"First period done, objective is {w0}")
+    # Rest of the periods
+    max_iter = 512
+    n_iter = 0
+    while t >= eps and n_iter < max_iter:
+        while True:  # a period can be executed for indefinitely many times.
+            print(f"Start period={period}, step size={t}, w0={w0:.4f}")
+            for _ in range(period):
+                n_iter += 1
+                if n_iter > max_iter:
+                    print(f"Exceed maximum iteration {max_iter}")
+                    return pi_star, w_star, grad_star
+                w1, grad1 = weighted_total_weight(graph, pi1)
+                if w1 > w0:
+                    pi_star = pi1
+                    w_star = w1
+                    grad_star = grad1
+                if grad1.any():  # since grad1 is of integer type
+                    pi1 = pi1 + t * (.7 * grad1 + .3 * grad0)
+                    grad0 = grad1
+                else:
+                    return pi_star, w_star, grad_star
+            if w1 <= w0:
+                print(f"End period={period}")
+                period = (period + 1) // 2
+                t /= 2
+                w0 = w1
+                break
+            else:
+                if (w1 - w0) / w0 < eps:
+                    return pi_star, w_star, grad_star
+                print(f"Continue period={period}")
+                w0 = w1
+    print(f"Total number of iteration is {n_iter}")
+    return pi_star, w_star, grad_star
 
-    return pi
+
+if __name__ == '__main__':
+    cost_mat= np.load('../data/ch130.npy')
+    graph = CompleteGraph(cost_mat)
+    print(f"The initial objective is {weighted_total_weight(graph, np.zeros(130))[0]}")
+    t0 = time.perf_counter()
+    pi_star, w_star, grad_star = dual_ascent(graph)
+    elapsed = time.perf_counter() - t0
+    print(f"It took {elapsed:.6f} seconds and got objective={w_star}, \n grad={grad_star}")
