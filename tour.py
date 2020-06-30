@@ -177,7 +177,7 @@ class TourDoubleList:
         # print("Changed Clone one:", list(newone.iter_vertices()))
         return newone
 
-    def routine_cost(self, cost: np.array):
+    def route_cost(self, cost: np.array):
         """return the cost of this tour"""
         start = 0
         nnext = self.links[start, 1]

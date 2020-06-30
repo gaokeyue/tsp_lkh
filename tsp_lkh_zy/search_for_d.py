@@ -18,7 +18,9 @@ def update_graph_weight(graph, pi):
 # weight of m1t after weighted
 def weighted_total_weight(graph, pi):
     new_g = CompleteGraph(graph.adj_mat + pi.reshape(graph.n, -1) + pi.reshape(-1, graph.n))
-    length, degree, _, _, _ = build_m1t(new_g)
+    m1t_result = build_m1t(new_g)
+    length = m1t_result['length']
+    degree = m1t_result['degree']
     w = length - 2 * sum(pi)
     return w, degree - 2
 
@@ -49,9 +51,10 @@ def build_m1t(graph):  # O(n^2)
                 v.parent = v0.id
     # report the total edge weight of the mst
     length = sum(graph.e_weight(vertex.parent, vertex.id) for vertex in vertices[1:])
+    print(f"The total weight of mst is {length}")
     # add the edge corresponding to the second nearest neighbor of one of the leaves of the tree
     list_leaves = []
-    for i in range(1, graph.n):
+    for i in range(graph.n):
         if degree[i] == 1:
             ending_node = nsmallest(3, enumerate(graph.adj_mat[i]), key=itemgetter(1))[1]
             list_leaves.append((ending_node[1], i, ending_node[0]))
@@ -63,7 +66,14 @@ def build_m1t(graph):  # O(n^2)
     # delete the special node from tree
     special_node = last_edge[1]
     # tree.remove(vertices[special_node])
-    return length, degree, special_node, tree, vertices
+    result = {'length': length,
+              'degree': degree,
+              'special_node': special_node,
+              'tree': tree,
+              'vertices': vertices,
+              'special_edges': (vertices[special_node].parent, last_edge[2])
+              }
+    return result
 
 
 def build_mst(graph):
@@ -88,9 +98,7 @@ def build_mst(graph):
 
 # beta_value: the length of the edge to be removed from the spanning tree when edge (i, j) is added
 # then alpha(i, j) = e(i, j) - beta(i, j)
-def beta(graph):  # O(n^2)
-    tree = build_m1t(graph)[3]  # O(n^2)
-    special_node = build_m1t(graph)[4]
+def get_beta(graph, tree, special_node):  # O(n^2)
     n = len(tree)
     beta_value = np.zeros((n, n))
     for i in range(n):  # O(n^2)
@@ -102,21 +110,26 @@ def beta(graph):  # O(n^2)
     return beta_value
 
 
-def alpha_nearness(graph):  # O(n^2)
+def get_alpha_nearness(graph):  # O(n^2)
     n = graph.n
-    special_node = build_m1t(graph)[2]  # O(n^2)
-    vertices = build_m1t(graph)[4]
+    m1t_result =  build_m1t(graph)
+    # length = m1t_result['length']
+    # degree = m1t_result['degree']
+    special_node = m1t_result['special_node']
+    special_edges = m1t_result['special_edges']
+    tree = m1t_result['tree']
+    vertices = m1t_result['vertices']
     alpha = np.zeros((n, n))
-    beta_value = beta(graph)  # O(n^2)
+    alpha[range(n), range(n)] = np.nan
+    beta_value = get_beta(graph, tree, special_node)  # O(n^2)
+    for j in range(n):
+        if j not in special_edges and j != special_node:
+            alpha[special_node, j] = graph.e_weight(special_node, j) - graph.e_weight(special_node, special_edges[1])
     for i in range(n):  # O(n^2)
         for j in range(i + 1, n):
-            if i == special_node or j == special_node:
-                list_n = sorted(graph.adj_mat[special_node])
-                alpha[i][j] = alpha[j][i] = list_n[2]
-            elif i == vertices[j].parent or j == vertices[i].parent:
-                alpha[i][j] = alpha[j][i] = 0
-            else:
-                alpha[i][j] = alpha[j][i] = graph.e_weight(i, j) - beta_value[i][j]
+            if i != special_node and j != special_node:
+                if i != vertices[j].parent and j != vertices[i].parent:
+                    alpha[i][j] = alpha[j][i] = graph.e_weight(i, j) - beta_value[i][j]
     return alpha
 
 
@@ -227,9 +240,11 @@ def dual_ascent(graph, eps=10 ** -6):
 
 if __name__ == '__main__':
     cost_mat= np.load('../data/ch130.npy')
-    graph = CompleteGraph(cost_mat)
-    print(f"The initial objective is {weighted_total_weight(graph, np.zeros(130))[0]}")
-    t0 = time.perf_counter()
-    pi_star, w_star, grad_star = dual_ascent(graph)
-    elapsed = time.perf_counter() - t0
-    print(f"It took {elapsed:.6f} seconds and got objective={w_star}, \n grad={grad_star}")
+    # graph = CompleteGraph(cost_mat)
+    # print(f"The initial objective is {weighted_total_weight(graph, np.zeros(130))[0]}")
+    # t0 = time.perf_counter()
+    # pi_star, w_star, grad_star = dual_ascent(graph)
+    # elapsed = time.perf_counter() - t0
+    # print(f"It took {elapsed:.6f} seconds and got objective={w_star}, \n grad={grad_star}")
+    from scipy.sparse.csgraph import minimum_spanning_tree
+    sp_tree = minimum_spanning_tree(cost_mat)
