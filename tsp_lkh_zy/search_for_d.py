@@ -16,10 +16,12 @@ def update_graph_weight(graph, pi):
 
 # weight of m1t after weighted
 def weighted_total_weight(graph, pi):
-    new_g = update_graph_weight(graph, pi)
-    result = build_m1t(new_g)
-    w = result[0] - 2 * sum(pi)
-    return [w, result[1]]
+    # new_g = update_graph_weight(graph, pi)
+
+    new_g = CompleteGraph(graph.adj_mat + pi.reshape(graph.n, -1) + pi.reshape(-1, graph.n))
+    length, degree, _, _, _ = build_m1t(new_g)
+    w = length - 2 * sum(pi)
+    return w, np.array(degree)
 
 
 def build_m1t(graph):  # O(n^2)
@@ -120,40 +122,47 @@ def alpha_nearness(graph):  # O(n^2)
 
 
 def best_pi(graph):
-    pi0 = [0 for _ in range(graph.n)]
-    w_0 = weighted_total_weight(graph, pi0)[0]
-    degree_0 = weighted_total_weight(graph, pi0)[1]
-    v_0 = [d - 2 for d in degree_0]
+    pi0 = np.zeros(graph.n)
+    w_0, degree_0 = weighted_total_weight(graph, pi0)
+    print(f"w0={w_0}")
+    v_0 = degree_0 - 2
     v_1 = v_0.copy()
     # calculate the initial step size
     t = 1
-    pi = [pi0[i] + t*(0.7*v_0[i]+0.3*v_1[i]) for i in range(graph.n)]
-    w_1 = weighted_total_weight(graph, pi)[0]
+    pi = pi0 + t*(0.7*v_0+0.3*v_1)
+    w_1, degree_1 = weighted_total_weight(graph, pi)
     while w_1 > w_0:
         t *= 2
-        pi = [pi0[i] + t * (0.7 * v_0[i] + 0.3 * v_1[i]) for i in range(graph.n)]
-        w_1 = weighted_total_weight(graph, pi)[0]
+        pi = pi0 + t * (0.7 * v_0 + 0.3 * v_1)
+        w_1, degree_1 = weighted_total_weight(graph, pi)
     t /= 2
+    print(f"Initial step size={t}, w={w_1}")
 
-    v_optimal = [0 for _ in range(graph.n)]
-    pi = [pi0[i] + t * (0.7 * v_0[i] + 0.3 * v_1[i]) for i in range(graph.n)]
+    pi = pi0 + t * (0.7 * v_0 + 0.3 * v_1)
     order = graph.n / 2
-    while t > 0.0001 and v_0 != v_optimal:
-        w_1 = weighted_total_weight(graph, pi)[0]
-        degree_1 = weighted_total_weight(graph, pi)[1]
+    while t > 0.0001 and v_0.any():
+        w_1, degree_1 = weighted_total_weight(graph, pi)
+        print(f"step size={t}, w={w_1}")
         while True:
             index = 1
-            while v_0 != v_optimal and index < order:
+            while v_0.any() and index < order:
                 index += 1
                 v_1 = v_0.copy()
-                v_0 = [d - 2 for d in degree_1]
-                pi = [pi[i] + t*(0.7*v_0[i]+0.3*v_1[i]) for i in range(graph.n)]
-                degree_1 = weighted_total_weight(graph, pi)[1]
+                v_0 = degree_1 - 2
+                pi = pi + t*(0.7*v_0+0.3*v_1)
                 w_0 = w_1
-                w_1 = weighted_total_weight(graph, pi)[0]
+                w_1, degree_1 = weighted_total_weight(graph, pi)
             if w_1 >= w_0:
                 order /= 2
                 break
         t = t/2
-
+    print(v_0)
     return pi
+
+
+if __name__ == '__main__':
+    cost_mat = np.load('../data/ch130.npy')
+    n = len(cost_mat)
+    # cost_mat[range(n), range(n)] = np.inf
+    graph = CompleteGraph(cost_mat)
+    my_bestpi = best_pi(graph)

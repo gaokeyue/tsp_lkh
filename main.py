@@ -8,8 +8,8 @@ from tsp_lkh_zy.tour import TourDoubleList as Tour
 from heapq import nsmallest
 from operator import itemgetter
 from tsp_lkh_zy.prim import CompleteGraph
-from tsp_lkh_zy.search_for_d import alpha_nearness, best_pi
-DATA_DIR = 'data'
+from tsp_lkh_zy.search_for_d import alpha_nearness, best_pi, weighted_total_weight
+DATA_DIR = 'data/'
 
 
 def tour_cost_arr(tour, cost_mat):
@@ -36,7 +36,8 @@ def preprocess_cost_mat(cost_mat):
     for i in range(len(pi)):
         for j in range(i, len(pi)):
             cost_mat_d[i, j] = cost_mat_d[j, i] = cost_mat[i, j] + pi[i] + pi[j]
-    alpha_value = alpha_nearness(graph)
+    # alpha_value = alpha_nearness(graph)
+    alpha_value = 0
     return cost_mat_d, alpha_value, pi
 
 
@@ -130,7 +131,7 @@ class LK:
             return better
         return
 
-    def dfs_iter(self, tour: Tour, seqv: list, gain: int):
+    def dfs_iter(self, tour: Tour, seqv: list, gain: float):
         """
         tour: Updated tour w.r.t. SeqV
         seqv: sequential vertices (v_0, v_1, ..., v_{2i-2}, v_{2i-1})
@@ -166,7 +167,7 @@ class LKH:
         self.size = len(cost)
         self.max_exchange = submove_size
         self.nearest_num = 5
-        self.candidates = {}  # self.candidates must support __getitem__
+        # self.candidates = {}  # self.candidates must support __getitem__
         self.create_candidates()
 
     def create_candidates(self):
@@ -283,15 +284,15 @@ class LKH:
                             return result
         return
 
-    def run(self):
+    def run(self, tour):
         """improve an initial tour by variable-exchange until local optimum."""
-        tour = self.create_initial_tour()
+        # tour = self.create_initial_tour()
         better = None
         cnt = 0
         while tour is not None:
-            # print("---------------------------------------------\n The ", cnt, "time.")
-            # print("Improved tour:", list(tour.iter_vertices()))
-            # print("Improved cost:", tour.routine_cost(self.cost))
+            print("---------------------------------------------\n The ", cnt, "time.")
+            print("Improved tour:", list(tour.iter_vertices()))
+            print("Improved cost:", self.tour_cost(tour))
             cnt += 1
             better = tour
             tour = self.improve(better)
@@ -299,17 +300,31 @@ class LKH:
 
 
 if __name__ == '__main__':
-    cost_filepath = 'data/ch130.npy'
-    cost_mat = np.load(cost_filepath)
-    n = len(cost_mat)
-    cost_mat[range(n), range(n)] = np.inf
-    cost_mat_d, alpha_value, pi = preprocess_cost_mat(cost_mat)
-    lkh_file = LKH(cost_mat_d)
-    lk_file = LK(cost_mat_d)
-    original_tour = Tour(list(range(n)))
-    # print("Original tour: ", list(original_tour.iter_vertices()))
-    # print("Original cost: ", lkh_file.tour_cost(original_tour))
-    # tour_lkh = lkh_file.run()
-    print("LKH Improved tour: ", list(tour_lkh.iter_vertices()))
-    print("LKH Improved cost: ", lkh_file.tour_cost(tour_lkh))
-    tour_lk = lk_file.run()
+    cost_filepath = 'ch130.npy'
+    cost_answerpath = 'ch_ans.npy'
+    cost_mat = np.load(DATA_DIR+cost_filepath)
+    # cost_mat, optimal_tour = read_test_data(cost_filepath, cost_answerpath)
+    # n = len(cost_mat)
+    # cost_mat[range(n), range(n)] = np.inf
+    # lkh_c = LKH(cost_mat)
+
+    # cost_mat_d, alpha_value, pi = preprocess_cost_mat(cost_mat)
+    graph = CompleteGraph(cost_mat)
+    pi = best_pi(graph)
+    # w = weighted_total_weight(graph, pi)[0]
+    # print(w)
+    # print(pi)
+    # lkh_file = LKH(cost_mat_d)
+    # lk_file = LK(cost_mat_d)
+    # original_tour = Tour(list(range(n)))
+    # # print("Original tour: ", list(original_tour.iter_vertices()))
+    # # print("Original cost: ", lkh_file.tour_cost(original_tour))
+    # tour_lkh = lkh_file.run(original_tour)
+    # print("LKH Improved tour: ", list(tour_lkh.iter_vertices()))
+    # print("LKH Improved cost: ", lkh_file.tour_cost(tour_lkh))
+    # # tour_lk = lk_file.run()
+    # tour_lkh_c = lkh_c.run(original_tour)
+    # print("LKH Improved cost under c: ", tour_cost_arr(list(tour_lkh_c.iter_vertices()), cost_mat))
+    #
+    # print("The Optimal Tour: ", list(optimal_tour))
+    # print("The Optimal cost: ", tour_cost_arr(optimal_tour, cost_mat))
