@@ -9,6 +9,7 @@ class TourDoubleList:
         """Accept any sequence of permutation of range(n). """
         # self.route = route
         self.size = len(route)
+        route = list(route)
         if route == [0] * self.size or route == [-1] * self.size:
             # Permit null initialization.
             self.links = np.zeros((self.size, 2), int)
@@ -176,7 +177,7 @@ class TourDoubleList:
         # print("Changed Clone one:", list(newone.iter_vertices()))
         return newone
 
-    def routine_cost(self, cost: np.array):
+    def route_cost(self, cost: np.array):
         """return the cost of this tour"""
         start = 0
         nnext = self.links[start, 1]

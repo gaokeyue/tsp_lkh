@@ -40,6 +40,7 @@ class CompleteGraph:
         adj_mat[range(n), range(n)] = non_edge_val
         return cls(adj_mat)
 
+
 @dataclass(order=True)
 class PrimVertex:
     """A vertex class whose attributes are used in Prim's Minimum spanning tree algorithm."""

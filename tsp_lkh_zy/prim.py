@@ -10,11 +10,12 @@ class CompleteGraph:
         :param adj_mat -- A dense graph is represented by an n-by-n numpy array adj_mat such that
         adj_mat[i, j] is the weight of edge(i, j). Note that if the graph is directed,
         the direction of edge (i, j) is from i to j. If j is not adjacent to i, then adj_mat[i, j] = np.nan
-        By default, adj_mat[i, i] = np.nan
+        By default, adj_mat[i, i] = np.inf
         :param is_complete -- whether the graph is complete.
         """
-        self.adj_mat = adj_mat.copy()
         self.n = len(adj_mat)
+        self.adj_mat = adj_mat.copy()
+        self.adj_mat[range(self.n), range(self.n)] = np.inf
 
     def __iter__(self):
         """Iterating over the vertices of the graph"""
