@@ -4,7 +4,8 @@ from __future__ import annotations
 from itertools import permutations
 import numpy as np
 import random
-from tour import TourDoubleList as Tour
+# from tour import TourDoubleList as Tour
+from tsp_lkh.tour import TourArray as Tour
 from heapq import nsmallest
 from operator import itemgetter
 from pre_tsp import dual_ascent, get_alpha_nearness
@@ -348,3 +349,7 @@ if __name__ == '__main__':
             inner_dict['value'] = min(inner_dict['value'], tour_star.route_cost(cost_mat))
 
         print(result_dict)
+    lkh_solver = LKH(cost_mat)
+    # tour0 = Tour(list(range(130)))
+    # lkh_solver.run(tour0)
+
