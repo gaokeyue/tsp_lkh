@@ -5,11 +5,11 @@ from itertools import permutations
 import numpy as np
 import random
 # from tour import TourDoubleList as Tour
-from tsp_lkh.tour import TourArray as Tour
+from tsp_lkh.tour import TourDoubleList as Tour
 from heapq import nsmallest
 from operator import itemgetter
-from pre_tsp import dual_ascent, get_alpha_nearness
-from utils import Averager
+from tsp_lkh.pre_tsp import dual_ascent, get_alpha_nearness
+from tsp_lkh.utils import Averager
 
 DATA_DIR = 'data/'
 
